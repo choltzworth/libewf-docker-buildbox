@@ -1,0 +1,60 @@
+#!/usr/bin/python3
+""" unlef is a command line tool to extract LEF files """
+import argparse
+import sys
+import os.path
+from lib.leffile import LefFile
+
+# Setup the console command argument parser
+PARSER = argparse.ArgumentParser(description="Extracts LEF files (L01, Lx01).")
+PARSER.add_argument("-l", "--list", action="store_true", help="list contents of archive in JSON")
+PARSER.add_argument("-n", "--numbering", action="store_true", help="extract archive in sequential numbering mode")
+PARSER.add_argument("-d", "--dir", action="store", help="directory to extract files", default=".")
+PARSER.add_argument("lef_file", action="store", help="file to extract")
+PARSER.add_argument("--suppress-apple-double-files", action="store_true", help="suppress AppleDouble files")
+
+# Parse
+ARGS = PARSER.parse_args()
+
+# Check file exists
+if not os.path.isfile(ARGS.lef_file):
+    print("File does not exist, aborting.", file=sys.stderr)
+    exit(1)
+
+# Create LefFile
+LEFFILE = LefFile(ARGS.lef_file, ARGS.suppress_apple_double_files)
+
+# Confirm this is a EWF/LEF file
+if not LEFFILE.validate_filetype():
+    print("File is not a EWF/LEF file, aborting.", file=sys.stderr)
+    exit(1)
+
+print("Archive:", ARGS.lef_file)
+
+try:
+    # Perform action - default to extraction if list is not defined
+    if ARGS.list:
+        # List files
+        LEFFILE.list_file_contents()
+    else:
+        # Determine extraction target and ensure it exists
+        TARGET_DIRECTORY = ARGS.dir
+        if not os.path.isdir(TARGET_DIRECTORY):
+            os.makedirs(TARGET_DIRECTORY)
+        # Extract files
+        LEFFILE.extract_to_directory(TARGET_DIRECTORY, ARGS.numbering)
+except OSError as error: # Unfortunately pyewf throws all exceptions as OSError
+    if error.errno is None: # If no errno is set its a libewf error and not a system error
+        print("Unable to read LEF file. File may be corrupt or encrypted.", file=sys.stderr)
+        print("Error: {0}".format(error), file=sys.stderr)
+    else:
+        print("System error encountered.", file=sys.stderr)
+        print("Error: {0}".format(error), file=sys.stderr)
+    exit(1)
+except: # Ensure proper error handling if other exceptions are thrown
+    error = sys.exc_info()
+    print("Unexpected error encountered.", file=sys.stderr)
+    print("Error: {0}".format(error), file=sys.stderr)
+    exit(1)
+
+exit(0)
